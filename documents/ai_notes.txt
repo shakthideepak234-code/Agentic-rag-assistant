@@ -1,0 +1,7 @@
+Artificial Intelligence (AI) is a field of computer science focused on creating systems that can perform tasks that normally require human intelligence.
+
+Retrieval-Augmented Generation (RAG) combines information retrieval with a large language model. Instead of relying only on the model's existing knowledge, RAG retrieves relevant information from an external knowledge base and provides it to the model as context.
+
+Agentic RAG adds an AI agent that can decide which tools or information sources to use. The agent may choose between documents, memory, APIs, or other tools before generating an answer.
+
+Large Language Models (LLMs) are AI models trained on large amounts of text to understand and generate natural language.
