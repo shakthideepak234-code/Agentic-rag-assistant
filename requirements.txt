@@ -1,0 +1,7 @@
+google-genai
+chromadb
+langchain-text-splitters
+python-dotenv
+ddgs
+gTTS
+streamlit
