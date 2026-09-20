@@ -104,7 +104,24 @@ def get_genai_client():
 @st.cache_resource
 def get_chroma_collection():
     chroma_client = chromadb.PersistentClient(path="./chroma_db")
-    return chroma_client.get_or_create_collection(name="ai_knowledge")
+    collection = chroma_client.get_or_create_collection(name="ai_knowledge")
+    
+    # Auto-populate if empty (e.g. fresh cloud deployment)
+    if collection.count() == 0:
+        try:
+            from pathlib import Path
+            from langchain_text_splitters import RecursiveCharacterTextSplitter
+            doc_path = Path("documents/ai_notes.txt")
+            if doc_path.exists():
+                text = doc_path.read_text(encoding="utf-8")
+                splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
+                chunks = splitter.split_text(text)
+                for i, chunk in enumerate(chunks):
+                    collection.upsert(ids=[f"chunk_{i}"], documents=[chunk])
+        except Exception:
+            pass
+            
+    return collection
 
 client = get_genai_client()
 collection = get_chroma_collection()
