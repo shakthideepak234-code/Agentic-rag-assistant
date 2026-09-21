@@ -1,0 +1,7 @@
+.env
+.venv
+chroma_db/
+app.py
+agent.py
+rag.py
+streamlit_app.py
