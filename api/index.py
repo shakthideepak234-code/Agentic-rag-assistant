@@ -5,9 +5,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from google import genai
-import chromadb
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Load environment variables
 load_dotenv()
@@ -30,33 +27,38 @@ class ChatRequest(BaseModel):
     message: str
     history: Optional[List[Dict[str, str]]] = []
 
-# ChromaDB Client setup
+# Paths setup
 CHROMA_PATH = Path("./chroma_db")
 DOCS_PATH = Path("documents/ai_notes.txt")
 
+# Safe optional import of chromadb
+try:
+    import chromadb
+except Exception as e:
+    chromadb = None
+
 def get_knowledge_context(question: str) -> str:
     """Retrieve relevant context from ChromaDB or fallback to direct document matching."""
-    try:
-        if CHROMA_PATH.exists() and any(CHROMA_PATH.iterdir()):
-            chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
-            collection = chroma_client.get_or_create_collection(name="ai_knowledge")
-            results = collection.query(query_texts=[question], n_results=2)
-            if results and results.get("documents") and results["documents"][0]:
-                return "\n\n".join(results["documents"][0])
-    except Exception as e:
-        print(f"ChromaDB lookup exception: {e}")
+    if chromadb is not None:
+        try:
+            if CHROMA_PATH.exists() and any(CHROMA_PATH.iterdir()):
+                chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
+                collection = chroma_client.get_or_create_collection(name="ai_knowledge")
+                results = collection.query(query_texts=[question], n_results=2)
+                if results and results.get("documents") and results["documents"][0]:
+                    return "\n\n".join(results["documents"][0])
+        except Exception as e:
+            print(f"ChromaDB lookup exception: {e}")
 
-    # Fallback to direct document text splitting if ChromaDB is missing
+    # Fallback to direct document text splitting if ChromaDB is missing or unavailable
     if DOCS_PATH.exists():
         try:
             text = DOCS_PATH.read_text(encoding="utf-8")
+            from langchain_text_splitters import RecursiveCharacterTextSplitter
             splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
             chunks = splitter.split_text(text)
             keywords = [w.lower() for w in question.split() if len(w) > 3]
-            matching_chunks = []
-            for chunk in chunks:
-                if any(kw in chunk.lower() for kw in keywords):
-                    matching_chunks.append(chunk)
+            matching_chunks = [c for c in chunks if any(kw in c.lower() for kw in keywords)]
             if matching_chunks:
                 return "\n\n".join(matching_chunks[:2])
             return "\n\n".join(chunks[:2])
@@ -68,7 +70,7 @@ def get_knowledge_context(question: str) -> str:
 def search_web(query: str) -> str:
     """Search live web using DuckDuckGo."""
     try:
-        from ddgs import DDGS
+        from duckduckgo_search import DDGS
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=3))
         if not results:
@@ -76,6 +78,10 @@ def search_web(query: str) -> str:
         return "\n\n".join([f"{r['title']}: {r['body']}" for r in results])
     except Exception as e:
         return f"Web search failed: {e}"
+
+@app.get("/")
+def read_root():
+    return {"status": "ok", "service": "Agentic RAG Assistant API"}
 
 @app.get("/api/health")
 def health_check():
@@ -86,6 +92,7 @@ def chat_endpoint(request: ChatRequest):
     if not api_key:
         raise HTTPException(status_code=500, detail="GOOGLE_API_KEY environment variable is not configured.")
 
+    from google import genai
     client = genai.Client(api_key=api_key)
     question = request.message
 
@@ -119,7 +126,7 @@ Instructions:
 - If you use knowledge base, start your reply with: (from knowledge base)
 - Do not use any emojis in your response text.
 
-Answer the user's question clearly and helpful.
+Answer the user's question clearly and helpfully.
 User: {question}
 Apple:"""
 
@@ -128,7 +135,6 @@ Apple:"""
         response = chat.send_message(prompt)
         reply_text = response.text if response else "No response generated."
 
-        # Determine source label
         source = "knowledge_base"
         if "(from web)" in reply_text:
             source = "web"

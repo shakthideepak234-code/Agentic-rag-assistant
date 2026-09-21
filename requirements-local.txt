@@ -1,6 +1,10 @@
 google-genai
+chromadb
 langchain-text-splitters
 python-dotenv
+ddgs
 duckduckgo-search
+gTTS
+streamlit
 fastapi
 uvicorn
