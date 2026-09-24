@@ -5,3 +5,9 @@ Retrieval-Augmented Generation (RAG) combines information retrieval with a large
 Agentic RAG adds an AI agent that can decide which tools or information sources to use. The agent may choose between documents, memory, APIs, or other tools before generating an answer.
 
 Large Language Models (LLMs) are AI models trained on large amounts of text to understand and generate natural language.
+
+AI is expected to have a profound impact on healthcare, with applications ranging from disease diagnosis to drug development and patient monitoring. Here are some of the key ways AI is anticipated to affect healthcare:
+
+Improved Diagnostics: AI can enhance the accuracy of disease detection, such as lung cancer detection, with sensitivity rates between 81% and 99%. It can also reduce false negatives, improving the chances of early detection and treatment.
+
+Accelerated Drug Development: AI is revolutionizing the drug discovery process, allowing for the identification of new drug targets and advancing candidates into preclinical trials in a fraction of the time it typically takes

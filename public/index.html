@@ -130,20 +130,32 @@
             gap: 8px;
         }
 
-        .btn-audio {
+        .btn-audio, .btn-mic {
             background: transparent;
             border: 1px solid var(--border-color);
             color: #8b949e;
-            padding: 3px 8px;
-            font-size: 0.75rem;
+            padding: 4px 10px;
+            font-size: 0.8rem;
             border-radius: 4px;
             cursor: pointer;
             transition: all 0.2s;
         }
 
-        .btn-audio:hover {
+        .btn-audio:hover, .btn-mic:hover {
             color: var(--text-heading);
             border-color: #8b949e;
+        }
+
+        .btn-mic.recording {
+            border-color: #f85149;
+            color: #f85149;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
         .input-area {
@@ -153,6 +165,7 @@
             padding: 0.75rem;
             border-radius: 10px;
             border: 1px solid var(--border-color);
+            align-items: center;
         }
 
         input[type="text"] {
@@ -207,14 +220,18 @@
         <div id="chat-container">
             <div class="message assistant">
                 <span class="badge badge-kb">KNOWLEDGE BASE</span>
-                Hello! I am Apple, your Agentic RAG Assistant. Ask me anything from your Knowledge Base or general live web queries.
+                <div>Hello! I am Apple, your Agentic RAG Assistant. Ask me anything from your Knowledge Base or general live web queries.</div>
+                <div class="msg-actions">
+                    <button class="btn-audio" onclick="speakText('Hello! I am Apple, your Agentic RAG Assistant. Ask me anything from your Knowledge Base or general live web queries.', this)">Play Audio</button>
+                </div>
             </div>
         </div>
 
         <div class="loading-indicator" id="loading">Thinking...</div>
 
         <div class="input-area">
-            <input type="text" id="user-input" placeholder="Type your question here..." onkeydown="if(event.key==='Enter') sendMessage()">
+            <input type="text" id="user-input" placeholder="Type or click Voice Input to speak..." onkeydown="if(event.key==='Enter') sendMessage()">
+            <button class="btn-mic" id="mic-btn" onclick="toggleVoiceInput()">Voice Input</button>
             <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
         </div>
     </main>
@@ -223,8 +240,61 @@
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
+        const micBtn = document.getElementById('mic-btn');
         const loading = document.getElementById('loading');
         let chatHistory = [];
+        let recognition = null;
+        let isRecording = false;
+
+        // Initialize Web Speech Recognition
+        if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                stopRecording();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                stopRecording();
+            };
+
+            recognition.onend = () => {
+                stopRecording();
+            };
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) {
+                alert('Voice input is not supported in this browser. Please use Chrome, Edge, or Safari.');
+                return;
+            }
+            if (isRecording) {
+                recognition.stop();
+                stopRecording();
+            } else {
+                try {
+                    recognition.start();
+                    isRecording = true;
+                    micBtn.classList.add('recording');
+                    micBtn.textContent = 'Listening...';
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            micBtn.classList.remove('recording');
+            micBtn.textContent = 'Voice Input';
+        }
 
         async function sendMessage() {
             const text = userInput.value.trim();
