@@ -128,7 +128,7 @@ with st.sidebar:
             api_key = st.session_state["user_api_key"]
 
 if not api_key:
-    st.info("👋 Welcome to **Apple Agentic RAG Assistant**!\n\nPlease enter your **Google Gemini API Key** in the sidebar (or configure the `GOOGLE_API_KEY` secret in your Hugging Face Space settings) to start.")
+    st.info("👋 Welcome to **Apple Agentic RAG Assistant**!\n\nPlease enter your **Google Gemini API Key** in the sidebar (or configure the `GOOGLE_API_KEY` secret in your deployment settings) to start.")
     st.stop()
 
 @st.cache_resource
@@ -160,7 +160,47 @@ def get_chroma_collection():
 client = get_genai_client(api_key)
 collection = get_chroma_collection()
 
-# 3. Helper Functions
+# 3. Resilient AI Generation with Auto-Fallback
+def generate_response_with_fallback(prompt: str, preferred_model: str) -> str:
+    """Generate LLM response with automatic fallback to healthy models on 503/429 spikes."""
+    candidate_models = [preferred_model, "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
+    seen = set()
+    models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
+    
+    last_error = None
+    for model in models_to_try:
+        try:
+            chat = client.chats.create(model=model)
+            response = chat.send_message(prompt)
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            last_error = e
+            continue
+            
+    return f"Unable to generate response right now ({last_error}). Please retry in a moment."
+
+def transcribe_speech_with_fallback(audio_bytes: bytes, preferred_model: str) -> str:
+    """Transcribe voice audio with automatic model fallback."""
+    candidate_models = [preferred_model, "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
+    seen = set()
+    models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
+    
+    for model in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=[
+                    types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
+                    "Transcribe this audio recording into exact plain text. Output ONLY the transcribed text and nothing else."
+                ]
+            )
+            if response and response.text:
+                return response.text.strip()
+        except Exception:
+            continue
+    raise RuntimeError("Voice transcription unavailable right now. Please try typing your question.")
+
 def search_knowledge(question: str) -> str:
     """Search ChromaDB knowledge base with fallback to document parsing."""
     if collection is not None:
@@ -240,8 +280,9 @@ with st.sidebar:
     st.subheader("Model & Voice")
     model_choice = st.selectbox(
         "Gemini Model",
-        options=["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash"],
-        index=0
+        options=["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"],
+        index=0,
+        help="gemini-3.5-flash-lite is recommended for ultra-fast, high availability responses."
     )
     enable_tts = st.toggle("Voice Output (Text-to-Speech)", value=True)
     auto_play = st.toggle("Auto-play Audio Response", value=False)
@@ -305,14 +346,7 @@ elif audio_input is not None:
         st.session_state["last_audio_hash"] = audio_hash
         with st.spinner("Transcribing speech with Gemini Multimodal..."):
             try:
-                response = client.models.generate_content(
-                    model=model_choice,
-                    contents=[
-                        types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
-                        "Transcribe this audio recording into exact plain text. Output ONLY the transcribed text and nothing else."
-                    ]
-                )
-                user_input = response.text.strip()
+                user_input = transcribe_speech_with_fallback(audio_bytes, model_choice)
                 st.toast(f"Transcribed Voice: '{user_input}'", icon="🎙️")
             except Exception as e:
                 st.error(f"Speech transcription failed: {e}")
@@ -354,12 +388,7 @@ Answer clearly, friendly, and concisely.
 User: {user_input}
 Apple:"""
 
-            try:
-                chat = client.chats.create(model=model_choice)
-                response = chat.send_message(prompt)
-                reply_text = response.text
-            except Exception as e:
-                reply_text = f"Error generating response: {e}"
+            reply_text = generate_response_with_fallback(prompt, model_choice)
 
             st.markdown(reply_text, unsafe_allow_html=True)
 
