@@ -1,21 +1,11 @@
-import os
-from dotenv import load_dotenv
-from google import genai
+"""
+Hugging Face Spaces & Streamlit Application Entrypoint
+"""
+import runpy
+import sys
+from pathlib import Path
 
-load_dotenv()
-
-client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
-
-chat = client.chats.create(model="gemini-3.6-flash")
-
-print("Apple is ready! Type 'exit' to stop.\n")
-
-while True:
-    user_input = input("you: ")
-
-    if user_input.lower() == "exit":
-        print("Apple: Goodbye!")
-        break
-
-    response = chat.send_message(user_input)
-    print("Apple:", response.text)
+# Run streamlit_app.py as the primary application
+if __name__ == "__main__" or "streamlit" in sys.modules:
+    streamlit_app_path = Path(__file__).parent / "streamlit_app.py"
+    runpy.run_path(str(streamlit_app_path), run_name="__main__")

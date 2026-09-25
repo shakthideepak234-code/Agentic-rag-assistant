@@ -25,7 +25,10 @@ def search_knowledge(question):
 # Tool: Live web search using DuckDuckGo (no API key needed)
 def search_web(query):
     try:
-        from ddgs import DDGS
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=3))
         if not results:
