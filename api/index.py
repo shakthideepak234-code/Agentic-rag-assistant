@@ -52,11 +52,61 @@ def get_knowledge_context(question: str) -> str:
         return "\n\n".join(matching[:2])
     return "\n\n".join(chunks[:2]) if chunks else "No knowledge base documents found."
 
-def search_web(query: str) -> str:
-    """Zero-dependency live web search using DuckDuckGo Instant Answer API."""
+WEATHER_KEYWORDS = {"weather", "temperature", "forecast", "rain", "sunny", "humidity", "climate", "hot", "cold", "wind", "storm"}
+NEWS_KEYWORDS = {"news", "latest", "today", "current", "update", "happening", "2024", "2025", "2026", "recent", "now"}
+
+def _is_weather_query(q: str) -> bool:
+    words = set(q.lower().split())
+    return bool(words & WEATHER_KEYWORDS)
+
+def _weather_search(query: str) -> str:
+    """Get real-time weather using wttr.in (no API key needed)."""
+    try:
+        # Extract likely city name: remove weather keywords, take first meaningful token(s)
+        tokens = [w for w in query.split() if w.lower() not in WEATHER_KEYWORDS and len(w) > 2]
+        city = "+".join(tokens[:2]) if tokens else "auto"
+        url = f"https://wttr.in/{urllib.parse.quote(city)}?format=j1"
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/7.88.0", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            cc = data.get("current_condition", [{}])[0]
+            area = data.get("nearest_area", [{}])[0]
+            city_name = area.get("areaName", [{}])[0].get("value", city)
+            country = area.get("country", [{}])[0].get("value", "")
+            desc = cc.get("weatherDesc", [{}])[0].get("value", "N/A")
+            temp_c = cc.get("temp_C", "N/A")
+            feels_c = cc.get("FeelsLikeC", "N/A")
+            humidity = cc.get("humidity", "N/A")
+            wind_kmph = cc.get("windspeedKmph", "N/A")
+            return (
+                f"Live weather for {city_name}, {country}: {desc}. "
+                f"Temperature: {temp_c}C (feels like {feels_c}C). "
+                f"Humidity: {humidity}%. Wind: {wind_kmph} km/h."
+            )
+    except Exception as e:
+        return f"Weather lookup failed: {e}"
+
+def _wikipedia_search(query: str) -> str:
+    """Get a factual summary from the Wikipedia REST API (no key needed)."""
+    try:
+        # Try exact title first, then search
+        clean = urllib.parse.quote(query.replace(" ", "_"))
+        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{clean}"
+        req = urllib.request.Request(url, headers={"User-Agent": "AgenticRAG/1.0", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            extract = data.get("extract", "")
+            if extract and len(extract) > 30:
+                return f"(Wikipedia) {extract[:500]}"
+    except Exception:
+        pass
+    return ""
+
+def _ddg_instant(query: str) -> str:
+    """DuckDuckGo Instant Answer API — good for entity definitions."""
     try:
         url = "https://api.duckduckgo.com/?q=" + urllib.parse.quote(query) + "&format=json&no_html=1&skip_disambig=1"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=4) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="ignore"))
             abstract = data.get("AbstractText", "")
@@ -64,10 +114,27 @@ def search_web(query: str) -> str:
                 return abstract
             topics = [t.get("Text", "") for t in data.get("RelatedTopics", []) if isinstance(t, dict) and "Text" in t]
             if topics:
-                return "\n\n".join(topics[:3])
-    except Exception as e:
-        return f"Web search notice: {e}"
-    return "No live web search results found."
+                return "\n".join(topics[:2])
+    except Exception:
+        pass
+    return ""
+
+def search_web(query: str) -> str:
+    """Hybrid live web search: weather via wttr.in, facts via Wikipedia, fallback to DDG Instant Answer."""
+    if _is_weather_query(query):
+        return _weather_search(query)
+
+    # Try Wikipedia first for factual/general queries
+    wiki = _wikipedia_search(query)
+    if wiki:
+        return wiki
+
+    # Fallback: DDG Instant Answer (good for entities/definitions)
+    ddg = _ddg_instant(query)
+    if ddg:
+        return ddg
+
+    return "No live web search results found for this query."
 
 def generate_ai_reply(api_key: str, prompt: str) -> str:
     """Direct, zero-dependency REST API call to Google Gemini with automatic model fallback."""
