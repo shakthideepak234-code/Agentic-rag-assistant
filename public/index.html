@@ -313,19 +313,23 @@
                     body: JSON.stringify({ message: text, history: chatHistory })
                 });
 
+                const rawText = await response.text();
+                let data = null;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (e) {
+                    // Non-JSON response
+                }
+
                 if (!response.ok) {
-                    let errMsg = 'Server request failed (' + response.status + ')';
-                    try {
-                        const err = await response.json();
-                        errMsg = err.detail || errMsg;
-                    } catch (e) {
-                        const rawText = await response.text();
-                        errMsg = rawText || errMsg;
-                    }
+                    const errMsg = (data && data.detail) ? data.detail : (rawText || `Server error (${response.status})`);
                     throw new Error(errMsg);
                 }
 
-                const data = await response.json();
+                if (!data || typeof data.reply === 'undefined') {
+                    throw new Error('Invalid response format received from server.');
+                }
+
                 loading.style.display = 'none';
                 sendBtn.disabled = false;
 

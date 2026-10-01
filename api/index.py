@@ -1,8 +1,10 @@
 import os
+import sys
 from pathlib import Path
-from typing import List, Dict, Optional
-from fastapi import FastAPI, HTTPException
+from typing import List, Dict, Optional, Any
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -11,7 +13,7 @@ load_dotenv()
 
 app = FastAPI(title="Agentic RAG Assistant API")
 
-# Enable CORS
+# Enable CORS for all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,29 +26,52 @@ class ChatRequest(BaseModel):
     message: str
     history: Optional[List[Dict[str, str]]] = []
 
-# Paths setup with robust absolute resolution for Vercel Serverless
-BASE_DIR = Path(__file__).resolve().parent.parent
-DOCS_PATH = BASE_DIR / "documents" / "ai_notes.txt"
-if not DOCS_PATH.exists():
-    DOCS_PATH = Path("documents/ai_notes.txt")
+# Embedded default knowledge context as a foolproof fallback
+DEFAULT_DOC_TEXT = """Artificial Intelligence (AI) is a field of computer science focused on creating systems that can perform tasks that normally require human intelligence.
+
+Retrieval-Augmented Generation (RAG) combines information retrieval with a large language model. Instead of relying only on the model's existing knowledge, RAG retrieves relevant information from an external knowledge base and provides it to the model as context.
+
+Agentic RAG adds an AI agent that can decide which tools or information sources to use. The agent may choose between documents, memory, APIs, or other tools before generating an answer.
+
+Large Language Models (LLMs) are AI models trained on large amounts of text to understand and generate natural language.
+
+AI is expected to have a profound impact on healthcare, with applications ranging from disease diagnosis to drug development and patient monitoring.
+
+Improved Diagnostics: AI can enhance the accuracy of disease detection, such as lung cancer detection, with sensitivity rates between 81% and 99%. It can also reduce false negatives, improving the chances of early detection and treatment.
+
+Accelerated Drug Development: AI is revolutionizing the drug discovery process, allowing for the identification of new drug targets and advancing candidates into preclinical trials in a fraction of the time it typically takes."""
 
 def get_knowledge_context(question: str) -> str:
-    """Retrieve relevant context from documents."""
-    if DOCS_PATH.exists():
+    """Retrieve relevant context from documents with absolute and embedded fallback."""
+    text = DEFAULT_DOC_TEXT
+    
+    # Try finding document from files
+    candidate_paths = [
+        Path(__file__).resolve().parent / "ai_notes.txt",
+        Path(__file__).resolve().parent.parent / "documents" / "ai_notes.txt",
+        Path("api/ai_notes.txt"),
+        Path("documents/ai_notes.txt"),
+    ]
+    for p in candidate_paths:
         try:
-            text = DOCS_PATH.read_text(encoding="utf-8")
-            from langchain_text_splitters import RecursiveCharacterTextSplitter
-            splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
-            chunks = splitter.split_text(text)
-            keywords = [w.lower() for w in question.split() if len(w) > 3]
-            matching_chunks = [c for c in chunks if any(kw in c.lower() for kw in keywords)]
-            if matching_chunks:
-                return "\n\n".join(matching_chunks[:2])
-            return "\n\n".join(chunks[:2])
-        except Exception as e:
-            print(f"Document fallback notice: {e}")
+            if p.exists():
+                text = p.read_text(encoding="utf-8")
+                break
+        except Exception:
+            continue
 
-    return "No knowledge base documents found."
+    try:
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
+        chunks = splitter.split_text(text)
+    except Exception:
+        chunks = [c.strip() for c in text.split("\n\n") if c.strip()]
+
+    keywords = [w.lower() for w in question.split() if len(w) > 3]
+    matching = [c for c in chunks if any(kw in c.lower() for kw in keywords)]
+    if matching:
+        return "\n\n".join(matching[:2])
+    return "\n\n".join(chunks[:2]) if chunks else "No knowledge base documents found."
 
 def search_web(query: str) -> str:
     """Search live web using DuckDuckGo."""
@@ -63,35 +88,82 @@ def search_web(query: str) -> str:
     except Exception as e:
         return f"Web search notice: {e}"
 
-@app.get("/")
-def read_root():
-    return {"status": "ok", "service": "Agentic RAG Assistant API"}
-
-@app.get("/api/health")
-def health_check():
-    return {"status": "ok", "service": "Agentic RAG Assistant API"}
-
-@app.post("/api/chat")
-def chat_endpoint(request: ChatRequest):
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGEL_API_KEY")
-    if not api_key:
-        raise HTTPException(
-            status_code=500,
-            detail="GOOGLE_API_KEY environment variable is not configured in Vercel project settings."
-        )
-
+def generate_ai_reply(api_key: str, prompt: str) -> str:
+    """Generate response using Google GenAI SDK with multi-model fallback."""
     from google import genai
     client = genai.Client(api_key=api_key)
-    question = request.message
+    
+    models = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
+    last_err = None
+    
+    for m in models:
+        try:
+            chat = client.chats.create(model=m)
+            res = chat.send_message(prompt)
+            if res and res.text:
+                return res.text
+        except Exception as e:
+            last_err = e
+            continue
+            
+    return f"Unable to generate AI response: {last_err}"
 
-    # Memory representation
+@app.get("/")
+@app.get("/api")
+@app.get("/api/health")
+def health_check():
+    has_key = bool(os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGEL_API_KEY"))
+    return {"status": "ok", "service": "Apple Agentic RAG API", "api_key_configured": has_key}
+
+@app.api_route("/api/chat", methods=["GET", "POST"])
+@app.api_route("/chat", methods=["GET", "POST"])
+@app.post("/")
+async def handle_chat(request: Request):
+    # Handle GET request with status info
+    if request.method == "GET":
+        return {"status": "ok", "message": "Send a POST request with {'message': 'your question'}"}
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Invalid JSON body. Expected {'message': 'your question'}."}
+        )
+
+    question = body.get("message", "").strip()
+    if not question:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Field 'message' cannot be empty."}
+        )
+
+    history = body.get("history", [])
+
+    # Check API key from env or header
+    api_key = (
+        os.getenv("GOOGLE_API_KEY") 
+        or os.getenv("GOOGEL_API_KEY")
+        or request.headers.get("x-api-key")
+    )
+    
+    if not api_key:
+        return {
+            "reply": "⚠️ **GOOGLE_API_KEY** is not configured in your Vercel Project Settings.\n\nPlease go to **Vercel Dashboard -> Settings -> Environment Variables**, add `GOOGLE_API_KEY`, and click **Redeploy**.",
+            "source": "knowledge_base",
+            "kb_context": "",
+            "web_context": ""
+        }
+
+    # Format memory lines
     memory_lines = []
-    if request.history:
-        for msg in request.history[-6:]:
-            role = msg.get("role", "user").capitalize()
-            content = msg.get("content", "")
-            memory_lines.append(f"{role}: {content}")
-    memory = "\n".join(memory_lines)
+    if history and isinstance(history, list):
+        for msg in history[-6:]:
+            if isinstance(msg, dict):
+                role = msg.get("role", "user").capitalize()
+                content = msg.get("content", "")
+                memory_lines.append(f"{role}: {content}")
+    memory_text = "\n".join(memory_lines)
 
     kb_context = get_knowledge_context(question)
     web_context = search_web(question)
@@ -99,7 +171,7 @@ def chat_endpoint(request: ChatRequest):
     prompt = f"""You are Apple, an intelligent AI assistant with access to a knowledge base and live web search.
 
 Conversation memory:
-{memory}
+{memory_text}
 
 --- Knowledge Base ---
 {kb_context}
@@ -117,23 +189,10 @@ Answer clearly, friendly, and concisely.
 User: {question}
 Apple:"""
 
-    candidate_models = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
-    reply_text = None
-    last_err = None
-    
-    for model in candidate_models:
-        try:
-            chat = client.chats.create(model=model)
-            response = chat.send_message(prompt)
-            if response and response.text:
-                reply_text = response.text
-                break
-        except Exception as e:
-            last_err = e
-            continue
-
-    if not reply_text:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(last_err)}")
+    try:
+        reply_text = generate_ai_reply(api_key, prompt)
+    except Exception as e:
+        reply_text = f"Error processing request: {e}"
 
     source = "knowledge_base"
     if "(from web)" in reply_text.lower():
