@@ -334,101 +334,11 @@ for message in st.session_state.messages:
         if "audio" in message and message["audio"]:
             st.audio(message["audio"], format="audio/mp3")
 
+
 # 7. Voice & Text Input Section
-import streamlit.components.v1 as components
-
-# Mobile-compatible HTML5 Voice Recorder
-VOICE_RECORDER_HTML = """
-<style>
-  #recorder-container {
-    font-family: sans-serif;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 0;
-  }
-  #recordBtn {
-    background: #238636;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 15px;
-    cursor: pointer;
-    min-width: 130px;
-  }
-  #recordBtn.recording {
-    background: #da3633;
-    animation: pulse 1s infinite;
-  }
-  @keyframes pulse {
-    0%,100% { opacity:1; }
-    50% { opacity:0.6; }
-  }
-  #status { color: #8B949E; font-size: 13px; }
-</style>
-<div id="recorder-container">
-  <button id="recordBtn" onclick="toggleRecord()">Start Recording</button>
-  <span id="status">Click to record your voice question</span>
-</div>
-<script>
-let mediaRecorder, audioChunks = [], isRecording = false, mimeType = 'audio/webm';
-
-function getSupportedMime() {
-  const types = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4'];
-  for (const t of types) {
-    if (MediaRecorder.isTypeSupported(t)) return t;
-  }
-  return '';
-}
-
-async function toggleRecord() {
-  if (!isRecording) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mimeType = getSupportedMime();
-      const opts = mimeType ? { mimeType } : {};
-      mediaRecorder = new MediaRecorder(stream, opts);
-      audioChunks = [];
-      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = reader.result.split(',')[1];
-          const detectedMime = mimeType || 'audio/webm';
-          window.parent.postMessage({ type: 'audio_recorded', data: base64, mime: detectedMime }, '*');
-        };
-        reader.readAsDataURL(blob);
-        stream.getTracks().forEach(t => t.stop());
-        document.getElementById('status').textContent = 'Processing...';
-      };
-      mediaRecorder.start();
-      isRecording = true;
-      document.getElementById('recordBtn').textContent = 'Stop Recording';
-      document.getElementById('recordBtn').classList.add('recording');
-      document.getElementById('status').textContent = 'Recording... click Stop when done';
-    } catch(err) {
-      document.getElementById('status').textContent = 'Mic error: ' + err.message;
-    }
-  } else {
-    mediaRecorder.stop();
-    isRecording = false;
-    document.getElementById('recordBtn').textContent = 'Start Recording';
-    document.getElementById('recordBtn').classList.remove('recording');
-  }
-}
-</script>
-"""
-
 st.markdown("### Voice Input")
-st.caption("Works on mobile and desktop — tap Start Recording, speak, tap Stop.")
-components.html(VOICE_RECORDER_HTML, height=80)
+audio_input = st.audio_input("Record Voice Question")
 
-# Fallback: also keep st.audio_input for desktop browsers
-audio_input = None
-with st.expander("Alternative: Use built-in recorder (desktop only)"):
-    audio_input = st.audio_input("Record Voice Question (desktop)")
 
 # Always render text input at the bottom
 text_input = st.chat_input("Ask a question or enter a command...")
