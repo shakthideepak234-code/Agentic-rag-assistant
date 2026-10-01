@@ -70,14 +70,17 @@ def get_knowledge_context(question: str) -> str:
 def search_web(query: str) -> str:
     """Search live web using DuckDuckGo."""
     try:
-        from duckduckgo_search import DDGS
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=3))
         if not results:
             return "No web results found."
-        return "\n\n".join([f"{r['title']}: {r['body']}" for r in results])
+        return "\n\n".join([f"{r.get('title', '')}: {r.get('body', '')}" for r in results])
     except Exception as e:
-        return f"Web search failed: {e}"
+        return f"Web search notice: {e}"
 
 @app.get("/")
 def read_root():
@@ -120,32 +123,44 @@ Conversation memory:
 {web_context}
 
 Instructions:
-- Use the Knowledge Base if it contains a relevant answer.
-- Use the Live Web Search for current events, news, or topics not in the knowledge base.
-- If you use web results, start your reply with: (from web)
-- If you use knowledge base, start your reply with: (from knowledge base)
-- Do not use any emojis in your response text.
+1. If the user shares or asks about personal details from conversation memory, answer directly from memory.
+2. If using knowledge base, answer accurately based on the documents.
+3. If using web results, answer based on current information.
+4. Do not use any emojis in your response text.
 
-Answer the user's question clearly and helpfully.
+Answer clearly, friendly, and concisely.
 User: {question}
 Apple:"""
 
-    try:
-        chat = client.chats.create(model="gemini-3.5-flash-lite")
-        response = chat.send_message(prompt)
-        reply_text = response.text if response else "No response generated."
+    candidate_models = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
+    reply_text = None
+    last_err = None
+    
+    for model in candidate_models:
+        try:
+            chat = client.chats.create(model=model)
+            response = chat.send_message(prompt)
+            if response and response.text:
+                reply_text = response.text
+                break
+        except Exception as e:
+            last_err = e
+            continue
 
+    if not reply_text:
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(last_err)}")
+
+    source = "knowledge_base"
+    if "(from web)" in reply_text.lower():
+        source = "web"
+    elif "(from knowledge base)" in reply_text.lower():
         source = "knowledge_base"
-        if "(from web)" in reply_text:
-            source = "web"
-        elif "(from knowledge base)" in reply_text:
-            source = "knowledge_base"
+    elif "memory" in reply_text.lower():
+        source = "memory"
 
-        return {
-            "reply": reply_text,
-            "source": source,
-            "kb_context": kb_context,
-            "web_context": web_context
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+    return {
+        "reply": reply_text,
+        "source": source,
+        "kb_context": kb_context,
+        "web_context": web_context
+    }
