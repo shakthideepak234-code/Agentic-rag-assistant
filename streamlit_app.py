@@ -180,26 +180,37 @@ def generate_response_with_fallback(prompt: str, preferred_model: str) -> str:
             
     return f"Unable to generate response right now ({last_error}). Please retry in a moment."
 
-def transcribe_speech_with_fallback(audio_bytes: bytes, preferred_model: str) -> str:
+def transcribe_speech_with_fallback(audio_bytes: bytes, preferred_model: str, mime_type: str = "audio/wav") -> str:
     """Transcribe voice audio with automatic model fallback."""
-    candidate_models = [preferred_model, "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
+    candidate_models = [preferred_model, "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
     seen = set()
     models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
     
+    # Normalize MIME type from browser
+    clean_mime = (mime_type or "audio/wav").split(";")[0].strip().lower()
+    if not clean_mime.startswith("audio/"):
+        clean_mime = "audio/wav"
+        
+    last_err = None
     for model in models_to_try:
         try:
             response = client.models.generate_content(
                 model=model,
                 contents=[
-                    types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
-                    "Transcribe this audio recording into exact plain text. Output ONLY the transcribed text and nothing else."
+                    types.Part.from_bytes(data=audio_bytes, mime_type=clean_mime),
+                    "Listen to this audio recording and transcribe what was spoken into plain text. Output ONLY the exact transcribed words. If the audio is silent, empty, or only noise, reply with [EMPTY]."
                 ]
             )
             if response and response.text:
-                return response.text.strip()
-        except Exception:
+                text = response.text.strip()
+                if text.upper() in ["[EMPTY]", "EMPTY", "SILENT", "SILENCE", "[SILENCE]"]:
+                    return ""
+                return text
+        except Exception as e:
+            last_err = e
             continue
-    raise RuntimeError("Voice transcription unavailable right now. Please try typing your question.")
+            
+    raise RuntimeError(f"Voice transcription unavailable ({last_err}). Please check your microphone or type your question.")
 
 def search_knowledge(question: str) -> str:
     """Search ChromaDB knowledge base with fallback to document parsing."""
@@ -344,10 +355,15 @@ elif audio_input is not None:
     audio_hash = hash(audio_bytes)
     if st.session_state.get("last_audio_hash") != audio_hash:
         st.session_state["last_audio_hash"] = audio_hash
-        with st.spinner("Transcribing speech with Gemini Multimodal..."):
+        audio_mime = getattr(audio_input, "type", "audio/wav") or "audio/wav"
+        with st.spinner("🎙️ Transcribing speech with Gemini Multimodal..."):
             try:
-                user_input = transcribe_speech_with_fallback(audio_bytes, model_choice)
-                st.toast(f"Transcribed Voice: '{user_input}'", icon="🎙️")
+                transcription = transcribe_speech_with_fallback(audio_bytes, model_choice, mime_type=audio_mime)
+                if transcription:
+                    user_input = transcription
+                    st.toast(f"Transcribed Voice: '{user_input}'", icon="🎙️")
+                else:
+                    st.warning("⚠️ No clear speech detected. Please speak into the mic and try recording again.")
             except Exception as e:
                 st.error(f"Speech transcription failed: {e}")
 
