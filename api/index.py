@@ -111,6 +111,7 @@ def generate_ai_reply(api_key: str, prompt: str) -> str:
 @app.get("/")
 @app.get("/api")
 @app.get("/api/health")
+@app.get("/health")
 def health_check():
     has_key = bool(os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGEL_API_KEY"))
     return {"status": "ok", "service": "Apple Agentic RAG API", "api_key_configured": has_key}
@@ -119,9 +120,8 @@ def health_check():
 @app.api_route("/chat", methods=["GET", "POST"])
 @app.post("/")
 async def handle_chat(request: Request):
-    # Handle GET request with status info
     if request.method == "GET":
-        return {"status": "ok", "message": "Send a POST request with {'message': 'your question'}"}
+        return health_check()
 
     try:
         body = await request.json()
@@ -208,3 +208,10 @@ Apple:"""
         "kb_context": kb_context,
         "web_context": web_context
     }
+
+# Catch-all route to ensure any rewritten path from Vercel is handled
+@app.api_route("/{full_path:path}", methods=["GET", "POST", "OPTIONS", "HEAD"])
+async def catch_all_routes(request: Request, full_path: str = ""):
+    if request.method == "POST":
+        return await handle_chat(request)
+    return health_check()
