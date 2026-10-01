@@ -1,5 +1,8 @@
 import os
 import sys
+import json
+import urllib.request
+import urllib.parse
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from fastapi import FastAPI, Request
@@ -45,7 +48,6 @@ def get_knowledge_context(question: str) -> str:
     """Retrieve relevant context from documents with absolute and embedded fallback."""
     text = DEFAULT_DOC_TEXT
     
-    # Try finding document from files
     candidate_paths = [
         Path(__file__).resolve().parent / "ai_notes.txt",
         Path(__file__).resolve().parent.parent / "documents" / "ai_notes.txt",
@@ -60,13 +62,7 @@ def get_knowledge_context(question: str) -> str:
         except Exception:
             continue
 
-    try:
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
-        chunks = splitter.split_text(text)
-    except Exception:
-        chunks = [c.strip() for c in text.split("\n\n") if c.strip()]
-
+    chunks = [c.strip() for c in text.split("\n\n") if c.strip()]
     keywords = [w.lower() for w in question.split() if len(w) > 3]
     matching = [c for c in chunks if any(kw in c.lower() for kw in keywords)]
     if matching:
@@ -74,34 +70,51 @@ def get_knowledge_context(question: str) -> str:
     return "\n\n".join(chunks[:2]) if chunks else "No knowledge base documents found."
 
 def search_web(query: str) -> str:
-    """Search live web using DuckDuckGo."""
+    """Zero-dependency live web search using DuckDuckGo Instant Answer API."""
     try:
-        try:
-            from ddgs import DDGS
-        except ImportError:
-            from duckduckgo_search import DDGS
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
-        if not results:
-            return "No web search results found."
-        return "\n\n".join([f"{r.get('title', '')}: {r.get('body', '')}" for r in results])
+        url = "https://api.duckduckgo.com/?q=" + urllib.parse.quote(query) + "&format=json&no_html=1&skip_disambig=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            abstract = data.get("AbstractText", "")
+            if abstract:
+                return abstract
+            topics = [t.get("Text", "") for t in data.get("RelatedTopics", []) if isinstance(t, dict) and "Text" in t]
+            if topics:
+                return "\n\n".join(topics[:3])
     except Exception as e:
         return f"Web search notice: {e}"
+    return "No live web search results found."
 
 def generate_ai_reply(api_key: str, prompt: str) -> str:
-    """Generate response using Google GenAI SDK with multi-model fallback."""
-    from google import genai
-    client = genai.Client(api_key=api_key)
-    
+    """Direct, zero-dependency REST API call to Google Gemini with automatic model fallback."""
     models = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
     last_err = None
     
     for m in models:
         try:
-            chat = client.chats.create(model=m)
-            res = chat.send_message(prompt)
-            if res and res.text:
-                return res.text
+            endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={api_key}"
+            payload = json.dumps({
+                "contents": [
+                    {
+                        "parts": [{"text": prompt}]
+                    }
+                ]
+            }).encode("utf-8")
+            
+            req = urllib.request.Request(
+                endpoint,
+                data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            with urllib.request.urlopen(req, timeout=12) as response:
+                result = json.loads(response.read().decode("utf-8"))
+                candidates = result.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts and "text" in parts[0]:
+                        return parts[0]["text"]
         except Exception as e:
             last_err = e
             continue
@@ -209,7 +222,7 @@ Apple:"""
         "web_context": web_context
     }
 
-# Catch-all route to ensure any rewritten path from Vercel is handled
+# Catch-all route for any Vercel path rewrite
 @app.api_route("/{full_path:path}", methods=["GET", "POST", "OPTIONS", "HEAD"])
 async def catch_all_routes(request: Request, full_path: str = ""):
     if request.method == "POST":
