@@ -159,7 +159,7 @@ class handler(BaseHTTPRequestHandler):
         
         if not api_key:
             self.send_json_response(200, {
-                "reply": "⚠️ **GOOGLE_API_KEY** is not configured in your Vercel Project Settings.\n\nPlease go to **Vercel Dashboard -> Settings -> Environment Variables**, add `GOOGLE_API_KEY`, and click **Redeploy**.",
+                "reply": "**GOOGLE_API_KEY** is not configured in your Vercel Project Settings.\n\nPlease go to **Vercel Dashboard -> Settings -> Environment Variables**, add `GOOGLE_API_KEY`, and click **Redeploy**.",
                 "source": "knowledge_base",
                 "kb_context": "",
                 "web_context": ""

@@ -1,6 +1,6 @@
 ---
 title: Apple Agentic RAG Assistant
-emoji: 🍎
+emoji: 
 colorFrom: blue
 colorTo: indigo
 sdk: streamlit
@@ -10,7 +10,7 @@ pinned: false
 license: mit
 ---
 
-# 🍎 Apple — Agentic RAG Assistant
+# Apple - Agentic RAG Assistant
 
 An intelligent, multi-source **Agentic Retrieval-Augmented Generation (RAG)** assistant built with Python, Google Gemini, ChromaDB, FastAPI, Streamlit, and Vercel.
 
@@ -18,16 +18,16 @@ The assistant dynamically evaluates user queries to route them between a private
 
 ---
 
-## 🌐 Live Deployments
+## Live Deployments
 
 | Platform | Interface | Live Link | Features |
 | :--- | :--- | :--- | :--- |
-| **Vercel** | Modern Web UI | [👉 **Live Web App**](https://agentic-rag-ai-three.vercel.app) | ⚡ 100% Serverless, 0 cold-start, 24/7 uptime |
-| **Streamlit** | Interactive Dashboard | [👉 **Live Dashboard**](https://ai-agentic-rag-assistant.streamlit.app) | 🎙️ Voice Input, Text-to-Speech, Model Selector, Vector counter |
+| **Vercel** | Modern Web UI | [**Live Web App**](https://agentic-rag-ai-three.vercel.app) | 100% Serverless, zero cold-start, 24/7 uptime |
+| **Streamlit** | Interactive Dashboard | [**Live Dashboard**](https://ai-agentic-rag-assistant.streamlit.app) | Voice Input, Text-to-Speech, Model Selector, Vector counter |
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 - **Retrieval-Augmented Generation (RAG)**: Document chunking and embedding ingestion into ChromaDB using LangChain text splitters.
 - **Live Web Search Integration**: Real-time DuckDuckGo web search fallback for current events, news, or out-of-domain queries.
@@ -38,7 +38,7 @@ The assistant dynamically evaluates user queries to route them between a private
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```text
                User Question (Web UI / Streamlit / Voice / Terminal CLI)
@@ -63,7 +63,7 @@ The assistant dynamically evaluates user queries to route them between a private
 
 ---
 
-## 💻 Getting Started Locally
+## Getting Started Locally
 
 ### 1. Prerequisites
 - Python 3.10+
@@ -99,7 +99,7 @@ The assistant dynamically evaluates user queries to route them between a private
 
 ---
 
-## 🛠️ Usage & Running Locally
+## Usage & Running Locally
 
 ### 1. Run the Streamlit Web App
 ```bash
@@ -124,7 +124,7 @@ uvicorn api.index:app --reload
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 Agentic-rag-assistant/
@@ -151,7 +151,7 @@ Agentic-rag-assistant/
 
 ---
 
-## 📄 Resume Description
+## Resume Description
 
 > **Agentic RAG Assistant ("Apple")** | *Python, Google Gemini API, ChromaDB, FastAPI, Streamlit, Vercel*
 > - Engineered an Agentic Retrieval-Augmented Generation (RAG) assistant that dynamically routes queries between a ChromaDB vector store and live web search APIs.

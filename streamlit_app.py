@@ -18,7 +18,6 @@ from gtts import gTTS
 # 1. Page Config & Custom Modern CSS
 st.set_page_config(
     page_title="Apple AI — Agentic RAG Platform",
-    page_icon="🍎",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -115,7 +114,7 @@ with st.sidebar:
     st.markdown("---")
 
     if not api_key:
-        st.warning("⚠️ Google API Key not found in environment secrets.")
+        st.warning("Google API Key not found in environment secrets.")
         user_key_input = st.text_input(
             "Enter Gemini API Key",
             type="password",
@@ -128,7 +127,7 @@ with st.sidebar:
             api_key = st.session_state["user_api_key"]
 
 if not api_key:
-    st.info("👋 Welcome to **Apple Agentic RAG Assistant**!\n\nPlease enter your **Google Gemini API Key** in the sidebar (or configure the `GOOGLE_API_KEY` secret in your deployment settings) to start.")
+    st.info("Welcome to Apple Agentic RAG Assistant. Please enter your Google Gemini API Key in the sidebar or configure GOOGLE_API_KEY in your deployment settings to start.")
     st.stop()
 
 @st.cache_resource
@@ -186,7 +185,6 @@ def transcribe_speech_with_fallback(audio_bytes: bytes, preferred_model: str, mi
     seen = set()
     models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
     
-    # Normalize MIME type from browser
     clean_mime = (mime_type or "audio/wav").split(";")[0].strip().lower()
     if not clean_mime.startswith("audio/"):
         clean_mime = "audio/wav"
@@ -278,7 +276,7 @@ def text_to_speech(text: str):
 with st.sidebar:
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("API Status", "Active 🟢")
+        st.metric("API Status", "Active")
     with col2:
         try:
             doc_count = collection.count() if collection else 0
@@ -318,7 +316,7 @@ with st.sidebar:
 # 5. Header Area
 st.markdown("""
 <div class="header-container">
-    <div class="header-title">🍎 Apple — Agentic RAG Platform</div>
+    <div class="header-title">Apple — Agentic RAG Platform</div>
     <div class="header-subtitle">Intelligent hybrid retrieval engine combining ChromaDB Vector Search & Real-Time Web Intelligence</div>
 </div>
 """, unsafe_allow_html=True)
@@ -337,7 +335,7 @@ for message in st.session_state.messages:
             st.audio(message["audio"], format="audio/mp3")
 
 # 7. Voice & Text Input Section
-st.markdown("### 🎙️ Voice Input")
+st.markdown("### Voice Input")
 audio_input = st.audio_input("Record Voice Question")
 
 # Always render text input at the bottom
@@ -356,14 +354,14 @@ elif audio_input is not None:
     if st.session_state.get("last_audio_hash") != audio_hash:
         st.session_state["last_audio_hash"] = audio_hash
         audio_mime = getattr(audio_input, "type", "audio/wav") or "audio/wav"
-        with st.spinner("🎙️ Transcribing speech with Gemini Multimodal..."):
+        with st.spinner("Transcribing speech with Gemini Multimodal..."):
             try:
                 transcription = transcribe_speech_with_fallback(audio_bytes, model_choice, mime_type=audio_mime)
                 if transcription:
                     user_input = transcription
-                    st.toast(f"Transcribed Voice: '{user_input}'", icon="🎙️")
+                    st.toast(f"Transcribed Voice: '{user_input}'")
                 else:
-                    st.warning("⚠️ No clear speech detected. Please speak into the mic and try recording again.")
+                    st.warning("No clear speech detected. Please speak into the mic and try recording again.")
             except Exception as e:
                 st.error(f"Speech transcription failed: {e}")
 
