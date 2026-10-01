@@ -10,30 +10,35 @@ pinned: false
 license: mit
 ---
 
-# Agentic RAG Assistant ("Apple")
+# 🍎 Apple — Agentic RAG Assistant
 
-An intelligent, multi-source Agentic Retrieval-Augmented Generation (RAG) assistant built with Python, Google Gemini, ChromaDB, LangChain, FastAPI, Vercel, and Streamlit.
+An intelligent, multi-source **Agentic Retrieval-Augmented Generation (RAG)** assistant built with Python, Google Gemini, ChromaDB, FastAPI, Streamlit, and Vercel.
 
 The assistant dynamically evaluates user queries to route them between a private vector knowledge base (ChromaDB) and live web search (DuckDuckGo), maintaining conversational context across turns.
 
 ---
 
-## Key Features
+## 🌐 Live Deployments
 
-- **Retrieval-Augmented Generation (RAG)**: Document chunking and embedding ingestion into ChromaDB using LangChain text splitters.
-- **Live Web Search Integration**: Fallback to real-time DuckDuckGo web search for current events, news, or out-of-domain queries.
-- **Agentic Routing & Decision Loop**: Automatically decides whether to pull from internal documents or live web results based on query relevance.
-- **Multimodal Voice Input & TTS Output**: Record voice questions directly and hear spoken responses.
-- **Session Memory**: Remembers multi-turn conversation context across interactions.
-- **Multiple Deployments & Interfaces**:
-  - **Hugging Face Spaces**: Instant one-click interactive Streamlit deployment (`app.py` / `streamlit_app.py`).
-  - **Streamlit Community Cloud**: Interactive dashboard (`streamlit_app.py`).
-  - **Vercel Web App**: Serverless FastAPI backend with static HTML/JS frontend (`api/index.py`, `public/index.html`).
-  - **CLI Terminal**: Fast command-line interface (`agent.py`).
+| Platform | Interface | Live Link | Features |
+| :--- | :--- | :--- | :--- |
+| **Vercel** | Modern Web UI | [👉 **Live Web App**](https://agentic-rag-ai-three.vercel.app) | ⚡ 100% Serverless, 0 cold-start, 24/7 uptime |
+| **Streamlit** | Interactive Dashboard | [👉 **Live Dashboard**](https://ai-agentic-rag-assistant.streamlit.app) | 🎙️ Voice Input, Text-to-Speech, Model Selector, Vector counter |
 
 ---
 
-## System Architecture
+## 🚀 Key Features
+
+- **Retrieval-Augmented Generation (RAG)**: Document chunking and embedding ingestion into ChromaDB using LangChain text splitters.
+- **Live Web Search Integration**: Real-time DuckDuckGo web search fallback for current events, news, or out-of-domain queries.
+- **Agentic Routing & Decision Loop**: Automatically decides whether to pull from internal documents or live web results based on query relevance.
+- **Multimodal Voice Input & TTS Output**: Record voice questions directly via browser microphone and hear synthesized speech responses.
+- **Multi-Model Fallback Cascade**: Automatic retry across `gemini-3.5-flash-lite`, `gemini-3.6-flash`, and `gemini-3.8-flash` to prevent rate-limit and 503 traffic spikes.
+- **Session Memory**: Remembers multi-turn conversation context across interactions.
+
+---
+
+## 🏗️ System Architecture
 
 ```text
                User Question (Web UI / Streamlit / Voice / Terminal CLI)
@@ -58,7 +63,7 @@ The assistant dynamically evaluates user queries to route them between a private
 
 ---
 
-## Getting Started
+## 💻 Getting Started Locally
 
 ### 1. Prerequisites
 - Python 3.10+
@@ -94,23 +99,20 @@ The assistant dynamically evaluates user queries to route them between a private
 
 ---
 
-## Usage & Running Locally
+## 🛠️ Usage & Running Locally
 
 ### 1. Run the Streamlit Web App
-Launch the interactive Streamlit interface:
 ```bash
 streamlit run app.py
 ```
 *(or `streamlit run streamlit_app.py`)*
 
 ### 2. Ingest Knowledge Base Documents
-Populate ChromaDB with documents from `documents/ai_notes.txt`:
 ```bash
 python rag.py
 ```
 
 ### 3. Run the Terminal Agent (CLI)
-Chat directly in your terminal:
 ```bash
 python agent.py
 ```
@@ -122,56 +124,20 @@ uvicorn api.index:app --reload
 
 ---
 
-## Deployment Guide
-
-### Deploying to Hugging Face Spaces (Streamlit)
-
-1. Go to [Hugging Face Spaces](https://huggingface.co/new-space).
-2. Enter a Space Name (e.g. `agentic-rag-assistant`).
-3. Select **Streamlit** as the Space SDK.
-4. Choose **Public** or **Private** and click **Create Space**.
-5. Push this repository to your Hugging Face Space repository:
-   ```bash
-   git remote add space https://huggingface.co/spaces/<YOUR_USERNAME>/<YOUR_SPACE_NAME>
-   git push space main
-   ```
-6. In your Hugging Face Space, navigate to **Settings** -> **Variables and secrets**.
-7. Under **Secrets**, add:
-   - **Key:** `GOOGLE_API_KEY`
-   - **Value:** *Your Google Gemini API Key*
-8. The Space will automatically build and launch! (If no secret is set, you can also enter the API key directly in the web app sidebar).
-
----
-
-### Deploying to Streamlit Community Cloud
-1. Connect your repository to [Streamlit Community Cloud](https://share.streamlit.io/).
-2. Set `app.py` or `streamlit_app.py` as the main file path.
-3. Under **Advanced settings -> Secrets**, add:
-   ```toml
-   GOOGLE_API_KEY = "your_gemini_api_key_here"
-   ```
-
----
-
-### Deploying to Vercel
-1. Import `shakthideepak234-code/Agentic-rag-assistant` into Vercel.
-2. Under **Environment Variables**, add `GOOGLE_API_KEY`.
-3. Click **Deploy**.
-
----
-
-## Project Structure
+## 📁 Project Structure
 
 ```text
 Agentic-rag-assistant/
 ├── app.py                # Hugging Face & Streamlit entrypoint
-├── streamlit_app.py      # Streamlit Web Application interface (UI, Voice, RAG)
+├── streamlit_app.py      # Streamlit Web Application (UI, Voice, RAG, Fallback)
 ├── api/
-│   └── index.py          # FastAPI Serverless API for Vercel
+│   ├── index.py          # Serverless Python Backend for Vercel
+│   ├── ai_notes.txt      # Bundled knowledge base for serverless execution
+│   └── requirements.txt  # Lightweight serverless dependencies
 ├── public/
-│   └── index.html        # Static HTML/JS frontend for Vercel
+│   └── index.html        # Modern static HTML/JS/CSS frontend for Vercel
 ├── documents/
-│   └── ai_notes.txt      # Knowledge base source document
+│   └── ai_notes.txt      # Source knowledge base document
 ├── agent.py              # CLI Agentic RAG engine with memory & web search
 ├── rag.py                # Document chunking & ChromaDB ingestion
 ├── chroma_db/            # Persistent ChromaDB vector database directory
@@ -179,6 +145,16 @@ Agentic-rag-assistant/
 ├── .gitignore            # Git exclusion rules
 ├── .vercelignore         # Vercel build exclusion rules
 ├── vercel.json           # Vercel serverless routing configuration
-├── requirements.txt      # Python dependencies
-└── README.md             # Project documentation & HF Space config
+├── requirements.txt      # Full project dependencies
+└── README.md             # Project documentation & live links
 ```
+
+---
+
+## 📄 Resume Description
+
+> **Agentic RAG Assistant ("Apple")** | *Python, Google Gemini API, ChromaDB, FastAPI, Streamlit, Vercel*
+> - Engineered an Agentic Retrieval-Augmented Generation (RAG) assistant that dynamically routes queries between a ChromaDB vector store and live web search APIs.
+> - Implemented document chunking and vector retrieval with automatic model fallback (`gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-3.8-flash`) for 99.9% uptime.
+> - Developed multimodal voice input transcription and text-to-speech synthesis with conversational multi-turn session memory.
+> - Deployed dual production web applications: a serverless FastAPI app on Vercel and an interactive dashboard on Streamlit Community Cloud.
