@@ -53,11 +53,41 @@ def get_knowledge_context(question: str) -> str:
     return "\n\n".join(chunks[:2]) if chunks else "No knowledge base documents found."
 
 WEATHER_KEYWORDS = {"weather", "temperature", "forecast", "rain", "sunny", "humidity", "climate", "hot", "cold", "wind", "storm"}
-NEWS_KEYWORDS = {"news", "latest", "today", "current", "update", "happening", "2024", "2025", "2026", "recent", "now"}
 
 def _is_weather_query(q: str) -> bool:
     words = set(q.lower().split())
     return bool(words & WEATHER_KEYWORDS)
+
+def _tavily_search(query: str) -> str:
+    """Live web search using Tavily Search API (free tier: 1000 queries/month)."""
+    api_key = os.getenv("TAVILY_API_KEY", "")
+    if not api_key:
+        return ""
+    try:
+        payload = json.dumps({
+            "api_key": api_key,
+            "query": query,
+            "search_depth": "basic",
+            "max_results": 3,
+            "include_answer": True
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.tavily.com/search",
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "AgenticRAG/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            answer = data.get("answer", "")
+            if answer:
+                return f"(Web) {answer}"
+            results = data.get("results", [])
+            snippets = [r.get("content", "") for r in results[:3] if r.get("content")]
+            if snippets:
+                return "(Web) " + " | ".join(snippets)
+    except Exception:
+        pass
+    return ""
 
 def _weather_search(query: str) -> str:
     """Get real-time weather using wttr.in (no API key needed)."""
@@ -120,16 +150,26 @@ def _ddg_instant(query: str) -> str:
     return ""
 
 def search_web(query: str) -> str:
-    """Hybrid live web search: weather via wttr.in, facts via Wikipedia, fallback to DDG Instant Answer."""
+    """
+    Hybrid live web search:
+    1. Tavily Search API — real web results, news, weather, anything (primary)
+    2. wttr.in — real-time weather, no key needed
+    3. Wikipedia REST API — factual summaries, no key needed
+    4. DuckDuckGo Instant Answer — entity definitions, final fallback
+    """
+    # Primary: Tavily (if TAVILY_API_KEY is set in Vercel env vars)
+    tavily = _tavily_search(query)
+    if tavily:
+        return tavily
+
+    # No Tavily key — use free fallbacks below
     if _is_weather_query(query):
         return _weather_search(query)
 
-    # Try Wikipedia first for factual/general queries
     wiki = _wikipedia_search(query)
     if wiki:
         return wiki
 
-    # Fallback: DDG Instant Answer (good for entities/definitions)
     ddg = _ddg_instant(query)
     if ddg:
         return ddg
